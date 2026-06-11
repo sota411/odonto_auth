@@ -1,0 +1,22 @@
+[project]
+name = "mitou"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "torchvision",
+    "albumentations",
+    "segmentation-models-pytorch",
+    "pillow",
+    "numpy",
+    "matplotlib",
+    "pyyaml",
+    "ultralytics",
+    "opencv-python",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "jupyter",
+    "ipykernel",
+]
