@@ -1,0 +1,7 @@
+patient_id,checkup_id,photographs
+p1,c1,"['Images/Photographs/p1-c1-01.jpg', 'Images/Photographs/p1-c1-02.jpg']"
+p1,c2,"['Images/Photographs/p1-c2-01.jpg']"
+p2,c1,"Images/Photographs/p2-c1-01.jpg
+Images/Photographs/p2-c1-02.jpg"
+p2,c2,"Images/Photographs/p2-c2-01.jpg"
+p3,c1,"Images/Photographs/p3-c1-01.jpg"

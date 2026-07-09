@@ -1,0 +1,9 @@
+query_id,template_id,query_subject_id,template_subject_id,query_session_id,template_session_id,is_genuine,per_tooth_scores,fused_score
+p1:c2,p1:c1,p1,p1,c2,c1,1,"{""R1"":0.91,""L1"":0.90}",0.91
+p2:c2,p2:c1,p2,p2,c2,c1,1,"{""R1"":0.86,""L1"":0.88}",0.87
+p3:c2,p3:c1,p3,p3,c2,c1,1,"{""R1"":0.77,""L1"":0.79}",0.78
+p1:c1,p1:c1,p1,p1,c1,c1,1,"{""R1"":0.99}",0.99
+p1:c2,p2:c1,p1,p2,c2,c1,0,"{""R1"":0.20,""L1"":0.22}",0.20
+p1:c2,p3:c1,p1,p3,c2,c1,0,"{""R1"":0.35,""L1"":0.31}",0.35
+p2:c2,p3:c1,p2,p3,c2,c1,0,"{""R1"":0.42,""L1"":0.39}",0.42
+p3:c2,p1:c1,p3,p1,c2,c1,0,"{""R1"":0.50,""L1"":0.45}",0.50
