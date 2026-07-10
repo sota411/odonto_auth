@@ -65,6 +65,17 @@ MANIFEST_COLUMNS = (
     "oral_condition_tag",
     "notes",
 )
+MANIFEST_IDENTITY_COLUMNS = (
+    "split",
+    "image_name",
+    "patient_token",
+    "checkup_token",
+    "source_patient_id",
+    "source_checkup_id",
+    "source_row_number",
+    "source_photo_reference",
+    "source_sha256",
+)
 
 
 @dataclass(frozen=True)
@@ -550,6 +561,36 @@ def write_manifest(path: Path, selected: list[SelectedPhoto]) -> None:
             )
 
 
+def manifest_identity_sha256(path: Path) -> str:
+    identity_rows: list[list[str]] = []
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise RuntimeError(f"annotation manifest has no header: {path}")
+        missing_columns = sorted(set(MANIFEST_IDENTITY_COLUMNS) - set(reader.fieldnames))
+        if missing_columns:
+            raise RuntimeError(f"annotation manifest is missing identity columns: {missing_columns}")
+        for row_number, row in enumerate(reader, start=2):
+            values: list[str] = []
+            for column in MANIFEST_IDENTITY_COLUMNS:
+                value = row[column]
+                if value is None:
+                    raise RuntimeError(
+                        f"annotation manifest identity column is missing at row {row_number}: {column}"
+                    )
+                values.append(value)
+            identity_rows.append(values)
+    payload = json.dumps(
+        {
+            "columns": MANIFEST_IDENTITY_COLUMNS,
+            "rows": identity_rows,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def write_labels_json(path: Path) -> None:
     labels = [
         {"name": name, "type": "polygon", "attributes": []} for name in ALL_TOOTH_NAMES
@@ -645,6 +686,7 @@ def build_outputs(
             "class_names": list(ALL_TOOTH_NAMES),
             "annotation_classes": list(ANNOTATED_TOOTH_NAMES),
             "manifest_sha256": sha256_file(manifest_path),
+            "manifest_identity_sha256": manifest_identity_sha256(manifest_path),
             "cvat_archive_sha256_by_split": {
                 split: sha256_file(archive_paths[split]) for split in SELECTED_SPLITS
             },

@@ -207,6 +207,12 @@ class PrepareCodeAnnotationBatchTest(unittest.TestCase):
         self.assertEqual(summary["selected_images_by_split"], {"train": 4, "val": 2})
         self.assertEqual(set(summary["cvat_archive_sha256_by_split"]), {"train", "val"})
         self.assertEqual(
+            summary["manifest_identity_sha256"],
+            prepare_code_annotation_batch.manifest_identity_sha256(
+                first_output / "annotation_manifest.csv"
+            ),
+        )
+        self.assertEqual(
             summary["checkups_csv_sha256"],
             prepare_code_annotation_batch.sha256_file(self.checkups_csv),
         )

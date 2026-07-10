@@ -57,9 +57,21 @@ uv run python -m unittest 02_stage2_capture_matching/tests/test_prepare_code_ann
 
 `code_annotation/cvat_train_images.zip` と `code_annotation/cvat_val_images.zip` から、[CVAT standalone task](https://docs.cvat.ai/docs/manual/basics/create-annotation-task/) を一つずつ作ります。二つの ZIP を同じ task へ入れません。各 task の作成画面で Labels の Raw 入力を開き、`code_annotation/cvat_labels.json` の内容を貼り付けます。ラベルは polygon に固定されています。順序は `R1-R7, L1-L7` の14クラスから変えません。実際に polygon を付ける対象は `R1-R3, L1-L3` の6クラスです。ラベル順を6クラスへ詰めると v7 checkpoint の class ID と一致しなくなります。
 
-歯冠の見えている境界を [polygon](https://docs.cvat.ai/docs/manual/advanced/annotation-with-polygons/manual-drawing/) で囲みます。画像ごとの作業後に、`annotation_manifest.csv` の `annotation_status` を `complete`、歯が写らない負例を `negative`、使用しない画像を `excluded` に変更します。`view_tag`、`lighting_tag`、`oral_condition_tag` には、後で条件別 mAP を集計できる値を記録します。
+歯冠の見えている境界を [polygon](https://docs.cvat.ai/docs/manual/advanced/annotation-with-polygons/manual-drawing/) で囲みます。画像ごとの作業後に、`annotation_manifest.csv` の `annotation_status` を `complete`、歯が写らない負例を `negative`、使用しない画像を `excluded` に変更します。採用する画像では、条件タグを次の値から一つずつ選びます。
 
-保存後は各 task を [Ultralytics YOLO Segmentation 1.0](https://docs.cvat.ai/docs/manual/advanced/formats/format-yolo-ultralytics/) で別々に export します。train task の export だけを学習 split、val task の export だけを検証 split に割り当てます。standalone task の export 内にある subset 名だけを信用して両者を統合しません。実写画像、台帳、export ZIP は Git にコミットしません。export 後に14クラス順、空ラベル、各6クラスの instance 数を検査してから、ゼロショット評価と v8 fine-tune 用 dataset を構築します。
+- `view_tag`: `frontal`, `left_lateral`, `right_lateral`, `maxillary_occlusal`, `mandibular_occlusal`, `other`
+- `lighting_tag`: `normal`, `dark`, `overexposed`, `reflection`
+- `oral_condition_tag`: `none`, `orthodontic_appliance`, `restoration`, `missing_tooth`, `other`
+
+`pending`、採用画像の空タグ、一覧外のタグが残っている場合、変換処理は停止します。`summary.json` に `manifest_identity_sha256` がない旧バッチは、全画像が `pending` であることを確認してから、上のアノテーションbatch準備コマンドを再実行します。アノテーション開始後はmanifestとZIPを上書きするため、batch準備コマンドを再実行しません。
+
+保存後は各 task を [Ultralytics YOLO Segmentation 1.0](https://docs.cvat.ai/docs/manual/advanced/formats/format-yolo-ultralytics/) で別々に export します。`Save images` を有効にし、`code_annotation/exports/train.zip` と `code_annotation/exports/val.zip` に置きます。変換処理では、export画像と元バッチZIPの画像が同一であることをSHA-256で確認します。
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/finalize_code_annotation_dataset.py --batch-dir 01_stage1_real_image_extraction/datasets/dataset_real/code_annotation --train-export 01_stage1_real_image_extraction/datasets/dataset_real/code_annotation/exports/train.zip --val-export 01_stage1_real_image_extraction/datasets/dataset_real/code_annotation/exports/val.zip --output-dir 01_stage1_real_image_extraction/datasets/dataset_real/dataset_code_real
+```
+
+この処理では、元画像とmanifestのSHA-256、train/valの画像集合、14クラスの順序、対象6クラスのpolygonを検査します。train task のexportだけを学習split、val taskのexportだけを検証splitへ割り当て、CVAT内部のsubset名は使いません。実写画像、台帳、export ZIP、変換後datasetはGitにコミットしません。
 
 ## 判断
 

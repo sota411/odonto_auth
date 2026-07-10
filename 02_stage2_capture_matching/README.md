@@ -69,6 +69,14 @@ uv run python 02_stage2_capture_matching/scripts/prepare_code_annotation_batch.p
 
 `summary.json` に `checkups_csv_sha256` がない場合は、直前の manifest 生成コマンドを再実行して3ファイルを同じ世代へ揃えます。アノテーション準備では、SHA-256、seed 42、患者単位 70/15/15 split を照合します。
 
+CVATのtrain / val taskを別々にexportした後、実写YOLO datasetを確定する:
+
+`summary.json` に `manifest_identity_sha256` がない旧バッチは、全画像が `pending` の段階でアノテーションbatchを再生成します。アノテーション開始後はmanifestとZIPを上書きしません。CVATのexportでは `Save images` を有効にします。
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/finalize_code_annotation_dataset.py --batch-dir 01_stage1_real_image_extraction/datasets/dataset_real/code_annotation --train-export 01_stage1_real_image_extraction/datasets/dataset_real/code_annotation/exports/train.zip --val-export 01_stage1_real_image_extraction/datasets/dataset_real/code_annotation/exports/val.zip --output-dir 01_stage1_real_image_extraction/datasets/dataset_real/dataset_code_real
+```
+
 ```bash
 uv run python 02_stage2_capture_matching/scripts/extract_code_features.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --images-root /path/to/COde --weights 01_stage1_real_image_extraction/experiments/v7_best/weights/best.pt --expected-weights-sha256 f945236eb2441dfbbd0c439a5cd1c3e4d94e97650f3d0429cff5ee6da7a90454 --output-dir 02_stage2_capture_matching/logs/code_features_test_conf005 --split test --feature-types resnet50 hog --device 0 --imgsz 832 --conf 0.05 --iou 0.70 --source-chunk-size 64 --feature-batch-size 16 --max-views-per-tooth 3 --audit-crops 60
 ```
