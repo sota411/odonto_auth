@@ -17,7 +17,11 @@
 
 - `evaluation/tooth_seg_flont_v1_v7_best_scores.csv`
 - `evaluation/tooth_seg_flont_v1_v7_best_scores.png`
+- `evaluation/code_matching_baseline_metrics.csv`
+- `evaluation/code_matching_resnet50_score_distribution.png`
+- `evaluation/code_matching_hog_score_distribution.png`
 - `notes/tooth_seg_flont_v1_v7_summary.md`
+- `notes/matching_baseline_report.md`
 
 ## 代表コマンド
 
@@ -45,6 +49,40 @@ uv run python 02_stage2_capture_matching/scripts/build_code_pair_manifest.py --i
 uv run python 02_stage2_capture_matching/scripts/evaluate_authentication.py --scores-csv 02_stage2_capture_matching/fixtures/auth_scores_smoke.csv --output-dir /tmp/auth_eval_smoke
 ```
 
+照合ロジックとスコア生成の単体テスト:
+
+```bash
+uv run python -m unittest discover -s 02_stage2_capture_matching/tests -p 'test_*.py' -v
+```
+
+COde の実画像を使うゼロショット照合ベースライン:
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/build_code_pair_manifest.py --input /path/to/COde/complete_dataset.csv --output-dir 02_stage2_capture_matching/logs/code_pair_manifest --seed 42 --train-ratio 0.70 --val-ratio 0.15 --test-ratio 0.15 --impostors-per-genuine 1 --min-photos 1
+```
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/extract_code_features.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --images-root /path/to/COde --weights 01_stage1_real_image_extraction/experiments/v7_best/weights/best.pt --expected-weights-sha256 f945236eb2441dfbbd0c439a5cd1c3e4d94e97650f3d0429cff5ee6da7a90454 --output-dir 02_stage2_capture_matching/logs/code_features_test_conf005 --split test --feature-types resnet50 hog --device 0 --imgsz 832 --conf 0.05 --iou 0.70 --source-chunk-size 64 --feature-batch-size 16 --max-views-per-tooth 3 --audit-crops 60
+```
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/score_code_pairs.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --features-npz 02_stage2_capture_matching/logs/code_features_test_conf005/features_resnet50.npz --images-root /path/to/COde --output-dir 02_stage2_capture_matching/logs/code_scores_test_conf005_resnet50 --split test --min-common-teeth 1
+```
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/evaluate_authentication.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_resnet50/scores.csv --output-dir 02_stage2_capture_matching/logs/auth_eval_test_conf005_resnet50
+```
+
+HOG 特徴の採点と評価:
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/score_code_pairs.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --features-npz 02_stage2_capture_matching/logs/code_features_test_conf005/features_hog.npz --images-root /path/to/COde --output-dir 02_stage2_capture_matching/logs/code_scores_test_conf005_hog --split test --min-common-teeth 1
+```
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/evaluate_authentication.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_hog/scores.csv --output-dir 02_stage2_capture_matching/logs/auth_eval_test_conf005_hog
+```
+
 v1 から v7 までのベストスコア集計:
 
 ```bash
@@ -53,7 +91,15 @@ uv run python 02_stage2_capture_matching/scripts/summarize_tooth_seg_scores.py
 
 `build_code_pair_manifest.py` は画像をダウンロードせず、`complete_dataset.csv` の `patient_id`、`checkup_id`、`photographs` から患者単位 split を作ります。COde 本体で使う場合は `--input` を COde の `complete_dataset.csv` に差し替えます。`pairs.csv` は同一患者・別チェックアップを `genuine`、別患者を `impostor` とし、主な列は `split`, `pair_id`, `label`, `is_genuine`, `template_id`, `query_id`, `template_patient_id`, `query_patient_id`, `template_photographs`, `query_photographs` です。
 
-`evaluate_authentication.py` は、照合スコア CSV から FAR、FRR、EER、ROC AUC を出力します。入力列と除外ルールは `notes/auth_evaluation_protocol.md` に記録しています。
+`evaluate_authentication.py` は、照合スコア CSV から FAR、FRR、EER、ROC AUC、d-prime、genuine/impostor の分布図を出力します。入力列と除外ルールは `notes/auth_evaluation_protocol.md` に記録しています。
+
+`extract_code_features.py` は、pair manifest で参照される checkup だけを読み、v7 の前歯6クラスを切り出します。`--images-root` には `Images/Photographs` を含む COde の展開ルートを指定します。v7 重みは `--expected-weights-sha256` と照合します。ResNet50 `IMAGENET1K_V2` は PyTorch の公式 URL から取得し、完全 SHA-256 `11ad3fa62ca79e40addfd354a8ec4b7c75143b3038b8d2a807fbc68deab379ca` と照合してから `weights_only=True` で読み込みます。同一 checkup・歯種の上位3 viewを confidence 加重平均し、凍結 ResNet50 と HOG の特徴を別々の NPZ に保存します。NPZ の主な配列は `checkup_ids [N]`、`patient_ids [N]`、`tooth_names [6]`、`embeddings [N, 6, D]`、`present [N, 6]`、`photo_manifest_json [N]` です。`photo_manifest_json` には特徴抽出時の画像参照と SHA-256 を保存します。`--audit-crops` を指定すると、IDと元画像名を含まない masked crop とコンタクトシートを ignored output に保存します。
+
+`score_code_pairs.py` は、`pairs.csv` と特徴 NPZ から共通歯種のコサイン類似度を計算し、歯種別スコアの単純平均を `fused_score` として出力します。採点前に現在の画像を再ハッシュし、抽出時の SHA-256 と一致しない場合は停止します。抽出時ハッシュを使って、別 checkup IDに同一内容の写真があるペアは `shared_photo_content` として除外します。特徴欠損や共通歯不足のペアも `skipped_pairs.csv` に理由付きで記録し、採点済みペアだけを `evaluate_authentication.py` 互換の `scores.csv` に保存します。
+
+`extract_code_features.py`、`score_code_pairs.py`、`evaluate_authentication.py` は出力一式を同一世代として作成し、成功した場合だけ `--output-dir` を置き換えます。途中で失敗した場合は、前回の出力を残します。
+
+COde は匿名 `patient_id` 内の研究評価にだけ使用します。実人物の特定、再識別、実運用の本人確認には使用しません。画像、特徴 NPZ、重み、監査 crop、評価ログは Git にコミットしません。
 
 ## 判断
 

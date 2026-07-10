@@ -12,6 +12,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from output_directory import create_generation_directory, discard_generation, publish_generation
+
 
 COLUMN_ALIASES = {
     "query_id": ("query_id",),
@@ -64,6 +66,15 @@ class OperatingPoint:
     threshold: float
     false_accept_rate: float
     false_reject_rate: float
+
+
+@dataclass(frozen=True)
+class ScoreDistribution:
+    genuine_mean: float
+    genuine_std: float
+    impostor_mean: float
+    impostor_std: float
+    d_prime: float | None
 
 
 def find_project_root(start: Path) -> Path:
@@ -272,6 +283,31 @@ def compute_auc(points: list[CurvePoint]) -> float:
     return auc
 
 
+def compute_score_distribution(records: list[ScoreRecord]) -> ScoreDistribution:
+    genuine_scores = [record.fused_score for record in records if record.is_genuine]
+    impostor_scores = [record.fused_score for record in records if not record.is_genuine]
+    if not genuine_scores:
+        raise RuntimeError("no genuine scores remained after filtering.")
+    if not impostor_scores:
+        raise RuntimeError("no impostor scores remained after filtering.")
+
+    genuine_mean = sum(genuine_scores) / len(genuine_scores)
+    impostor_mean = sum(impostor_scores) / len(impostor_scores)
+    genuine_variance = sum((score - genuine_mean) ** 2 for score in genuine_scores) / len(genuine_scores)
+    impostor_variance = sum((score - impostor_mean) ** 2 for score in impostor_scores) / len(impostor_scores)
+    genuine_std = math.sqrt(genuine_variance)
+    impostor_std = math.sqrt(impostor_variance)
+    pooled_std = math.sqrt((genuine_variance + impostor_variance) / 2.0)
+    d_prime = None if pooled_std == 0.0 else (genuine_mean - impostor_mean) / pooled_std
+    return ScoreDistribution(
+        genuine_mean=genuine_mean,
+        genuine_std=genuine_std,
+        impostor_mean=impostor_mean,
+        impostor_std=impostor_std,
+        d_prime=d_prime,
+    )
+
+
 def choose_operating_point(points: list[CurvePoint], target_far: float) -> OperatingPoint:
     candidates = [point for point in points if point.false_accept_rate <= target_far]
     if not candidates:
@@ -372,6 +408,46 @@ def write_far_frr_plot(path: Path, points: list[CurvePoint], eer: EerResult) -> 
     plt.close(fig)
 
 
+def write_score_distribution_plot(path: Path, records: list[ScoreRecord]) -> None:
+    genuine_scores = [record.fused_score for record in records if record.is_genuine]
+    impostor_scores = [record.fused_score for record in records if not record.is_genuine]
+    all_scores = genuine_scores + impostor_scores
+    minimum = min(all_scores)
+    maximum = max(all_scores)
+    if minimum == maximum:
+        minimum -= 0.5
+        maximum += 0.5
+    bin_count = min(30, max(5, math.ceil(math.sqrt(len(all_scores)))))
+    bin_width = (maximum - minimum) / bin_count
+    bins = [minimum + index * bin_width for index in range(bin_count + 1)]
+
+    fig, ax = plt.subplots(figsize=(7, 4.2), dpi=160)
+    ax.hist(
+        impostor_scores,
+        bins=bins,
+        density=True,
+        alpha=0.55,
+        color="#dc2626",
+        label="Impostor",
+    )
+    ax.hist(
+        genuine_scores,
+        bins=bins,
+        density=True,
+        alpha=0.55,
+        color="#2563eb",
+        label="Genuine",
+    )
+    ax.set_xlabel("Fused Score")
+    ax.set_ylabel("Density")
+    ax.set_title("Score Distribution")
+    ax.grid(True, axis="y", alpha=0.25)
+    ax.legend(loc="best")
+    fig.tight_layout()
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)
+
+
 def summarize(
     args: argparse.Namespace,
     raw_records: list[ScoreRecord],
@@ -379,6 +455,7 @@ def summarize(
     excluded_same_session_genuine: int,
     eer: EerResult,
     auc: float,
+    distribution: ScoreDistribution,
     operating_points: list[OperatingPoint],
 ) -> dict[str, object]:
     return {
@@ -391,6 +468,13 @@ def summarize(
         "eer": eer.eer,
         "eer_threshold": eer.threshold,
         "roc_auc": auc,
+        "score_distribution": {
+            "genuine_mean": distribution.genuine_mean,
+            "genuine_std": distribution.genuine_std,
+            "impostor_mean": distribution.impostor_mean,
+            "impostor_std": distribution.impostor_std,
+            "d_prime": distribution.d_prime,
+        },
         "operating_points": [
             {
                 "target_far": point.target_far,
@@ -410,27 +494,47 @@ def main() -> int:
     points = build_curve(records)
     eer = compute_eer(points)
     auc = compute_auc(points)
+    distribution = compute_score_distribution(records)
     operating_points = [choose_operating_point(points, target) for target in OPERATING_FAR_TARGETS]
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    generation_dir = create_generation_directory(args.output_dir)
+    try:
+        write_curves_csv(generation_dir / "curves.csv", points)
+        write_operating_points_csv(generation_dir / "operating_points.csv", operating_points)
+        write_roc_plot(generation_dir / "roc_curve.png", points, auc)
+        write_far_frr_plot(generation_dir / "far_frr_curve.png", points, eer)
+        write_score_distribution_plot(generation_dir / "score_distribution.png", records)
+        summary = summarize(
+            args,
+            raw_records,
+            records,
+            excluded_same_session_genuine,
+            eer,
+            auc,
+            distribution,
+            operating_points,
+        )
+        (generation_dir / "summary.json").write_text(
+            json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        publish_generation(generation_dir, args.output_dir)
+    finally:
+        discard_generation(generation_dir)
+
     curves_csv = args.output_dir / "curves.csv"
     operating_points_csv = args.output_dir / "operating_points.csv"
     summary_json = args.output_dir / "summary.json"
     roc_png = args.output_dir / "roc_curve.png"
     far_frr_png = args.output_dir / "far_frr_curve.png"
-
-    write_curves_csv(curves_csv, points)
-    write_operating_points_csv(operating_points_csv, operating_points)
-    write_roc_plot(roc_png, points, auc)
-    write_far_frr_plot(far_frr_png, points, eer)
-    summary = summarize(args, raw_records, records, excluded_same_session_genuine, eer, auc, operating_points)
-    summary_json.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    score_distribution_png = args.output_dir / "score_distribution.png"
 
     print(f"summary: {summary_json}")
     print(f"curves: {curves_csv}")
     print(f"operating_points: {operating_points_csv}")
     print(f"roc: {roc_png}")
     print(f"far_frr: {far_frr_png}")
+    print(f"score_distribution: {score_distribution_png}")
     print(f"used_records={summary['used_records']} excluded_same_session_genuine={excluded_same_session_genuine}")
     print(f"eer={eer.eer:.6f} threshold={eer.threshold:.6f} roc_auc={auc:.6f}")
     return 0
