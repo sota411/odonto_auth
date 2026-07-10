@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
 
+from code_photos import sha256_file
+
 
 REQUIRED_COLUMNS = ("patient_id", "checkup_id", "photographs")
 IMAGE_SUFFIX_PATTERN = re.compile(r"\.(?:jpg|jpeg|png)\Z", re.IGNORECASE)
@@ -495,6 +497,7 @@ def main() -> int:
     write_checkups_csv(checkups_csv, checkups, split_by_patient)
     write_pairs_csv(pairs_csv, pairs)
     summary = summarize(args, checkups, source_rows, skipped_min_photos, split_by_patient, pairs, pair_stats)
+    summary["checkups_csv_sha256"] = sha256_file(checkups_csv)
     summary_json.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     print(f"checkups: {checkups_csv}")

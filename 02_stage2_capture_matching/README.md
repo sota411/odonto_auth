@@ -61,6 +61,14 @@ COde の実画像を使うゼロショット照合ベースライン:
 uv run python 02_stage2_capture_matching/scripts/build_code_pair_manifest.py --input /path/to/COde/complete_dataset.csv --output-dir 02_stage2_capture_matching/logs/code_pair_manifest --seed 42 --train-ratio 0.70 --val-ratio 0.15 --test-ratio 0.15 --impostors-per-genuine 1 --min-photos 1
 ```
 
+同じ患者 split から CVAT 用の実写アノテーション batch を作る:
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/prepare_code_annotation_batch.py --checkups-csv 02_stage2_capture_matching/logs/code_pair_manifest/checkups.csv --source-summary 02_stage2_capture_matching/logs/code_pair_manifest/summary.json --images-root /path/to/COde --output-dir 01_stage1_real_image_extraction/datasets/dataset_real/code_annotation --seed 42 --train-checkups 10 --val-checkups 5 --photos-per-checkup 4
+```
+
+`summary.json` に `checkups_csv_sha256` がない場合は、直前の manifest 生成コマンドを再実行して3ファイルを同じ世代へ揃えます。アノテーション準備では、SHA-256、seed 42、患者単位 70/15/15 split を照合します。
+
 ```bash
 uv run python 02_stage2_capture_matching/scripts/extract_code_features.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --images-root /path/to/COde --weights 01_stage1_real_image_extraction/experiments/v7_best/weights/best.pt --expected-weights-sha256 f945236eb2441dfbbd0c439a5cd1c3e4d94e97650f3d0429cff5ee6da7a90454 --output-dir 02_stage2_capture_matching/logs/code_features_test_conf005 --split test --feature-types resnet50 hog --device 0 --imgsz 832 --conf 0.05 --iou 0.70 --source-chunk-size 64 --feature-batch-size 16 --max-views-per-tooth 3 --audit-crops 60
 ```
@@ -90,6 +98,8 @@ uv run python 02_stage2_capture_matching/scripts/summarize_tooth_seg_scores.py
 ```
 
 `build_code_pair_manifest.py` は画像をダウンロードせず、`complete_dataset.csv` の `patient_id`、`checkup_id`、`photographs` から患者単位 split を作ります。COde 本体で使う場合は `--input` を COde の `complete_dataset.csv` に差し替えます。`pairs.csv` は同一患者・別チェックアップを `genuine`、別患者を `impostor` とし、主な列は `split`, `pair_id`, `label`, `is_genuine`, `template_id`, `query_id`, `template_patient_id`, `query_patient_id`, `template_photographs`, `query_photographs` です。
+
+`prepare_code_annotation_batch.py` は `checkups.csv` の train / val 患者だけから1患者1checkupで画像を選びます。選定順は seed と source ID の SHA-256 で固定し、内容が重複する写真は除外します。出力は匿名名の画像、CVAT用ZIP、14クラスのラベル定義、source IDと画像SHA-256を持つ ignored manifest です。test患者はアノテーションにも学習にも使いません。
 
 `evaluate_authentication.py` は、照合スコア CSV から FAR、FRR、EER、ROC AUC、d-prime、genuine/impostor の分布図を出力します。入力列と除外ルールは `notes/auth_evaluation_protocol.md` に記録しています。
 
