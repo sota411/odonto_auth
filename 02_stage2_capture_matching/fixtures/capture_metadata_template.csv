@@ -1,0 +1,1 @@
+schema_version,collection_phase,subject_id,session_id,session_index,capture_role,capture_date,image_id,image_index,relative_path,sha256,device_model,camera_app,lighting,capture_timing,distance_cm,orientation,mouth_pose,saliva_level,food_debris,face_action,quality_status,consent_version,captured_by,reviewed_by,notes

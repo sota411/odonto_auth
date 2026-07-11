@@ -1,6 +1,6 @@
 # 公開口腔内写真データセット調査
 
-調査日: 2026-06-12
+調査日: 2026-06-12 / 追跡確認: 2026-07-11
 
 ## 目的
 
@@ -20,6 +20,8 @@
 
 完全条件である「前歯が写る実写カラー口腔内写真、被写体 ID、複数セッション、歯牙単位セグメンテーション注釈、再配布可能ライセンス」を同時に満たす公開データセットは、下記の探索範囲では確認できなかった。したがって、Plan 02 では自前収集または COde を使った照合プロトタイプの検証と、別データによる抽出モデルの fine-tune を分けて設計する。
 
+2026年7月11日の追跡確認では、Google Scholarで同じ検索語を再検索し、CVPR 2024の [Teeth-SEG / IO150K](https://zoubo9034.github.io/TeethSEG/) を追加した。IO150Kのうち実写RGB口腔内写真は0.8Kであり、残りは3D scanからのrendered image 80Kと口腔石膏模型70Kである。歯牙segmentationには使えるが、RGB写真の被写体ID、複数セッション、dataset本体の利用許諾は配布ページで確認できないため、完全条件を満たす候補にはならない。
+
 ## 候補一覧
 
 | 名称 | 一次情報 URL | 画像種別 | 規模 | ID・複数セッション | アノテーション | ライセンス・利用条件 | 判定 | 根拠 |
@@ -34,6 +36,7 @@
 | Teeth or Dental image dataset | [Mendeley Data](https://data.mendeley.com/datasets/6zsnhrds9t/1) | 子どもの非う蝕歯の複数視点画像 | 9,562 images、8 subcategories | 被写体 ID と複数セッションは確認できない | カテゴリ別画像。歯牙マスクは確認できない | CC BY 4.0 | 条件付きでドメイン適応用。照合と教師あり歯牙分割には不足 | Mendeley は maxillary/upper front、right、left、occlusal、mandibular/lower front、right、left、occlusal を記載 |
 | OMNI Dataset | [GitHub](https://github.com/RoundFaceJ/OMNI) | 実写 RGB 口腔内写真、複数視点 | 4,166 RGB images、384 participants | participants は確認。複数セッションは確認できない | Malocclusion issue labels、COCO format annotations | GitHub に LICENSE は確認できない。Google Drive 配布 | 条件付きで分類・検出の参考。ライセンス未確認のため利用前確認が必要 | GitHub README は 4,166 RGB oral cavity images、384 participants、5 views、COCO structure を記載 |
 | SegmentAnyTooth | [GitHub](https://github.com/thangngoc89/SegmentAnyTooth) | データセットではなく、口腔内写真向け歯牙列挙・セグメンテーション framework | 公開データセット規模は確認できない | 該当なし | 出力 mask は FDI tooth numbers | Code は MIT。weights は署名した non-commercial license agreement が必要 | データセットではない。抽出ツールとして条件付きで使える | README は intraoral photos、front/upper/lower/left/right views、weights 申請、non-commercial license を記載 |
+| Teeth-SEG / IO150K | [公式プロジェクト](https://zoubo9034.github.io/TeethSEG/), [CVPR 2024 paper](https://openaccess.thecvf.com/content/CVPR2024/html/Zou_Teeth-SEG_An_Efficient_Instance_Segmentation_Framework_for_Orthodontic_Treatment_based_CVPR_2024_paper.html) | Challenge80Kは3D scan由来rendering、Plaster70Kは口腔石膏模型、RGB0.8Kは標準5-view口腔内写真 | 合計150K超。実写RGBは0.8K | plaster modelは治療前・中・後を含むが、RGB写真の被写体IDと複数sessionは確認できない | orthodontistによる歯牙instance segmentation | project pageはdataset downloadを案内するが、dataset本体のlicenseは明記していない | license確認後に抽出用として利用可能。照合用には不足 | 公式ページは構成をChallenge80K、Plaster70K、RGB0.8Kと明記。RGBは全体の一部 |
 | DENTEX | [Grand Challenge](https://dentex.grand-challenge.org/), [Hugging Face](https://huggingface.co/datasets/ibrahimhamamci/DENTEX) | パノラマ歯科 X線 | 693 quadrant、634 quadrant-enumeration、1005 fully labeled、1571 unlabeled X-rays | 患者 ID と写真セッションは対象外 | X線上の検出、FDI、診断 | CC BY-NC-SA 4.0 | 対象外 | Grand Challenge は panoramic X-rays challenge と記載。Hugging Face README は panoramic dental X-rays と記載 |
 | Teeth3DS / Teeth3DS+ / 3DTeethSeg | [3DTeethSeg GitHub](https://github.com/abenhamadou/3DTeethSeg22_challenge), [Teeth3DS+](https://crns-smartvision.github.io/teeth3ds/), [arXiv](https://arxiv.org/abs/2210.06094), [Grand Challenge](https://3dteethseg.grand-challenge.org/) | 3D intraoral scans | 1,800 3D intraoral scans、900 patients。Teeth3DS+ の 3DTeethLand は 340 IOS scans | 患者 ID と上下顎スキャンはある。実写写真ではない | 3D 頂点単位の tooth labels と instances、FDI。3DTeethLand は3D landmarks | Teeth3DS データは CC BY-NC-ND 4.0。3DTeethSeg リポジトリは MIT。3DTeethLand Zenodo 登録は CC BY 4.0 | 対象外。ただし擬似画像生成元に近い | 3DTeethSeg GitHub は data license、1,800 3D intra-oral scans、900 patients、`id_patient` を記載。Teeth3DS+ は intraoral 3D scans と 340 IOS scans を記載 |
 | ToothFairy2 | [公式ページ](https://ditto.ing.unimore.it/toothfairy2/), [Grand Challenge dataset](https://toothfairy2.grand-challenge.org/dataset/) | CBCT volume | Set P 417、Set F 63、合計480 | 実写写真ではない。患者単位 volume | raw images、segmentation maps、dataset.json。42 classes | Grand Challenge dataset はログインが必要。training set は CC BY-SA と表示 | 対象外 | 公式ページは MICCAI2024、CBCT volume、417 + 63、42 classes を記載 |
@@ -71,6 +74,7 @@ max_photos_per_photo_row 26
 - PhysioNet: FDTooth、multimodal dental dataset。
 - IEEE DataPort: Aoralscan3 tooth segmentation dataset のページと DOI 解決先を直接確認した。
 - 論文経由: PubMed の gingivitis dataset、arXiv の COde、Teeth3DS+、SegmentAnyTooth、AlphaDent 論文ページ。
+- Google Scholar: `"intraoral photograph dataset" tooth segmentation` を2026年7月11日に再検索し、Teeth-SEG / IO150K、gingivitis dataset、caries dataset、FDToothの論文と配布元を照合した。
 - Teeth3DS 関連: Teeth3DS+ 公式ページ、3DTeethSeg Grand Challenge、PyTorch Geometric 参照情報。
 
 使用した主な検索クエリは次の通りである。
@@ -89,6 +93,7 @@ max_photos_per_photo_row 26
 - `AlphaDent dataset automated tooth pathology detection`
 - `SegmentAnyTooth intraoral photos dataset GitHub`
 - `A dental intraoral image dataset of gingivitis for image captioning`
+- `"intraoral photograph dataset" tooth segmentation` (Google Scholar)
 - `COde benchmark multimodal oro-dental dataset Hugging Face`
 
 ## 採用・不採用理由
@@ -109,10 +114,12 @@ Plan 03 では、抽出モデルの実写適応を COde の疑似ラベルまた
 
 ## 残課題
 
-COde は Hugging Face API の `usedStorage` が 1,929,195,758 bytes であり、`COde-Dataset.zip` の HEAD で確認した `Content-Length` / `x-linked-size` は 963,785,879 bytes である。今回の調査では画像本体のダウンロードと視覚確認は実施していない。次工程では、ファイル名、画像ビュー、前歯の写り方、同一患者内の撮影条件差をサンプルで確認する必要がある。
+COde は Hugging Face API の `usedStorage` が 1,929,195,758 bytes であり、`COde-Dataset.zip` の実ファイルは 963,785,879 bytes、SHA-256は `f4e5664ef4d57caa7ecdf68963551dccf0053e380efeb2f198f1cd5d2d68781d` だった。2026年7月に全量を取得し、正面、左右側方、上下顎咬合面の写真と前歯の写りを目視した。6,496枚を使った実写照合baselineまで実行し、詳細は [matching_baseline_report.md](matching_baseline_report.md) に記録した。これにより、COdeが前歯を含む実写カラー写真であることと、同一患者の別checkupを持つことは確認済みである。
 
 FDTooth は申請制であり、ファイル本体は未取得である。利用する場合は、PhysioNet の credentialing、CITI training、DUA signing を完了してから、前歯 bbox と本プロジェクトの前歯6本定義の対応を確認する。
 
 OMNI は GitHub README でデータ内容は確認できるが、LICENSE ファイルが 404 であった。利用する場合は、著者または配布元のライセンス確認が必要である。
+
+COde以外の配布ページでは、生体認証用途を個別に許可または禁止する条項を確認できなかった。一般ライセンスだけを根拠に本人確認へ転用せず、抽出用の画像処理研究に限定する。ID付き照合や実運用の補助認証には、用途を明記した同意を得た自前データを使う。
 
 サブエージェント調査は2件がコンテキスト上限で失敗したため、同じ範囲を小さく切った代替サブエージェントを起動した。失敗により一次情報の確認を省略せず、主担当側で配布元ページと API を直接確認した。
