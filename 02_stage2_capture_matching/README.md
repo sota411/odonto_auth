@@ -20,10 +20,15 @@
 - `evaluation/tooth_seg_flont_v1_v7_best_scores.csv`
 - `evaluation/tooth_seg_flont_v1_v7_best_scores.png`
 - `evaluation/code_matching_baseline_metrics.csv`
+- `evaluation/code_matching_rotv2_baseline_metrics.csv`
 - `evaluation/code_matching_per_tooth_resnet50_metrics.csv`
 - `evaluation/code_matching_per_tooth_hog_metrics.csv`
+- `evaluation/code_matching_rotv2_per_tooth_resnet50_metrics.csv`
+- `evaluation/code_matching_rotv2_per_tooth_hog_metrics.csv`
 - `evaluation/code_matching_resnet50_score_distribution.png`
 - `evaluation/code_matching_hog_score_distribution.png`
+- `evaluation/code_matching_rotv2_resnet50_score_distribution.png`
+- `evaluation/code_matching_rotv2_hog_score_distribution.png`
 - `evaluation/rendered_hog_matching_metrics.csv`
 - `evaluation/rendered_hog_score_distribution.png`
 - `fixtures/teeth3ds_render_sources.csv`
@@ -119,17 +124,17 @@ uv run python 02_stage2_capture_matching/scripts/finalize_code_annotation_datase
 ```
 
 ```bash
-uv run python 02_stage2_capture_matching/scripts/extract_code_features.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --images-root /path/to/COde --weights 01_stage1_real_image_extraction/experiments/v7_best/weights/best.pt --expected-weights-sha256 f945236eb2441dfbbd0c439a5cd1c3e4d94e97650f3d0429cff5ee6da7a90454 --output-dir 02_stage2_capture_matching/logs/code_features_test_conf005 --split test --feature-types resnet50 hog --device 0 --imgsz 832 --conf 0.05 --iou 0.70 --source-chunk-size 64 --feature-batch-size 16 --max-views-per-tooth 3 --audit-crops 60
+uv run python 02_stage2_capture_matching/scripts/extract_code_features.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --images-root /path/to/COde --weights 01_stage1_real_image_extraction/experiments/v7_best/weights/best.pt --expected-weights-sha256 f945236eb2441dfbbd0c439a5cd1c3e4d94e97650f3d0429cff5ee6da7a90454 --output-dir 02_stage2_capture_matching/logs/code_features_test_conf005_rotv2 --split test --feature-types resnet50 hog --device 0 --imgsz 832 --conf 0.05 --iou 0.70 --source-chunk-size 64 --feature-batch-size 16 --crop-size 224 --crop-padding 0.12 --max-views-per-tooth 3 --audit-crops 60
 ```
 
 ```bash
-uv run python 02_stage2_capture_matching/scripts/score_code_pairs.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --features-npz 02_stage2_capture_matching/logs/code_features_test_conf005/features_resnet50.npz --images-root /path/to/COde --output-dir 02_stage2_capture_matching/logs/code_scores_test_conf005_resnet50 --split test --min-common-teeth 1
+uv run python 02_stage2_capture_matching/scripts/score_code_pairs.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --features-npz 02_stage2_capture_matching/logs/code_features_test_conf005_rotv2/features_resnet50.npz --images-root /path/to/COde --output-dir 02_stage2_capture_matching/logs/code_scores_test_conf005_rotv2_resnet50 --split test --min-common-teeth 1
 ```
 
 2つ以上のcheckup特徴から1人分の登録テンプレートを作る:
 
 ```bash
-uv run python 02_stage2_capture_matching/scripts/tooth_template.py --features-npz 02_stage2_capture_matching/logs/code_features_test_conf005/features_hog.npz --output-npz 02_stage2_capture_matching/logs/templates/subject.npz --subject-id SUBJECT_ID --checkup-id SUBJECT_ID:CHECKUP_1 --checkup-id SUBJECT_ID:CHECKUP_2 --feature-name hog
+uv run python 02_stage2_capture_matching/scripts/tooth_template.py --features-npz 02_stage2_capture_matching/logs/code_features_test_conf005_rotv2/features_hog.npz --output-npz 02_stage2_capture_matching/logs/templates/subject.npz --subject-id SUBJECT_ID --checkup-id SUBJECT_ID:CHECKUP_1 --checkup-id SUBJECT_ID:CHECKUP_2 --feature-name hog
 ```
 
 画像1枚を登録テンプレートと照合する:
@@ -141,35 +146,35 @@ uv run python 02_stage2_capture_matching/scripts/match_teeth.py --query /path/to
 ファイル、hash、template契約だけを確認するときは`--validate-only`を付けます。この場合はYOLOと特徴抽出器を起動しません。通常実行のstdoutは`query_id`、`template_subject_id`、`per_tooth_scores`、`fused_score`を持つJSONです。
 
 ```bash
-uv run python 02_stage2_capture_matching/scripts/evaluate_authentication.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_resnet50/scores.csv --output-dir 02_stage2_capture_matching/logs/auth_eval_test_conf005_resnet50
+uv run python 02_stage2_capture_matching/scripts/evaluate_authentication.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_rotv2_resnet50/scores.csv --output-dir 02_stage2_capture_matching/logs/auth_eval_test_conf005_rotv2_resnet50
 ```
 
 HOG 特徴の採点と評価:
 
 ```bash
-uv run python 02_stage2_capture_matching/scripts/score_code_pairs.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --features-npz 02_stage2_capture_matching/logs/code_features_test_conf005/features_hog.npz --images-root /path/to/COde --output-dir 02_stage2_capture_matching/logs/code_scores_test_conf005_hog --split test --min-common-teeth 1
+uv run python 02_stage2_capture_matching/scripts/score_code_pairs.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --features-npz 02_stage2_capture_matching/logs/code_features_test_conf005_rotv2/features_hog.npz --images-root /path/to/COde --output-dir 02_stage2_capture_matching/logs/code_scores_test_conf005_rotv2_hog --split test --min-common-teeth 1
 ```
 
 ```bash
-uv run python 02_stage2_capture_matching/scripts/evaluate_authentication.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_hog/scores.csv --output-dir 02_stage2_capture_matching/logs/auth_eval_test_conf005_hog
+uv run python 02_stage2_capture_matching/scripts/evaluate_authentication.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_rotv2_hog/scores.csv --output-dir 02_stage2_capture_matching/logs/auth_eval_test_conf005_rotv2_hog
 ```
 
 歯種別のAUCとd-prime:
 
 ```bash
-uv run python 02_stage2_capture_matching/scripts/evaluate_per_tooth_scores.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_resnet50/scores.csv --output-dir 02_stage2_capture_matching/logs/per_tooth_eval_resnet50
+uv run python 02_stage2_capture_matching/scripts/evaluate_per_tooth_scores.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_rotv2_resnet50/scores.csv --output-dir 02_stage2_capture_matching/logs/per_tooth_test_conf005_rotv2_resnet50
 ```
 
 ```bash
-uv run python 02_stage2_capture_matching/scripts/evaluate_per_tooth_scores.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_hog/scores.csv --output-dir 02_stage2_capture_matching/logs/per_tooth_eval_hog
+uv run python 02_stage2_capture_matching/scripts/evaluate_per_tooth_scores.py --scores-csv 02_stage2_capture_matching/logs/code_scores_test_conf005_rotv2_hog/scores.csv --output-dir 02_stage2_capture_matching/logs/per_tooth_test_conf005_rotv2_hog
 ```
 
 ```bash
-cp 02_stage2_capture_matching/logs/per_tooth_eval_resnet50/per_tooth_metrics.csv 02_stage2_capture_matching/evaluation/code_matching_per_tooth_resnet50_metrics.csv
+cp 02_stage2_capture_matching/logs/per_tooth_test_conf005_rotv2_resnet50/per_tooth_metrics.csv 02_stage2_capture_matching/evaluation/code_matching_rotv2_per_tooth_resnet50_metrics.csv
 ```
 
 ```bash
-cp 02_stage2_capture_matching/logs/per_tooth_eval_hog/per_tooth_metrics.csv 02_stage2_capture_matching/evaluation/code_matching_per_tooth_hog_metrics.csv
+cp 02_stage2_capture_matching/logs/per_tooth_test_conf005_rotv2_hog/per_tooth_metrics.csv 02_stage2_capture_matching/evaluation/code_matching_rotv2_per_tooth_hog_metrics.csv
 ```
 
 v1 から v7 までのベストスコア集計:
