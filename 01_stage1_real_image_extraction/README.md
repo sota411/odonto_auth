@@ -11,6 +11,7 @@
 │   ├── dataset_flont_min1/
 │   └── dataset_flont_min5/
 ├── scripts/
+├── tests/
 └── experiments/
     ├── v4_baseline/
     ├── v5/
@@ -38,6 +39,36 @@ v7 検証:
 ```bash
 uv run python 01_stage1_real_image_extraction/scripts/validate_tooth_seg_flont_v7.py --device cpu --project /tmp/mitou_clean_v7_validation
 ```
+
+v8 fine-tune設定の非ML検証:
+
+```bash
+uv run python 01_stage1_real_image_extraction/scripts/train_tooth_seg_flont_v8.py --synthetic-data 01_stage1_real_image_extraction/datasets/dataset_flont/dataset_flont.yaml --real-data 01_stage1_real_image_extraction/datasets/dataset_real/dataset_code_real/dataset_code_real.yaml --real-repeat 2 --prepare-only --device cpu
+```
+
+このコマンドと下記の実写valコマンドは、CVAT exportから`dataset_code_real`を確定した後に実行します。現時点で再実行できる非ML smoke testは次のコマンドです。
+
+```bash
+uv run python -m unittest discover -s 01_stage1_real_image_extraction/tests -p 'test_*.py' -v
+```
+
+`--prepare-only` は擬似・実写dataset、class順、画像数、混合比、初期重み、出力先とaugmentation設定を検査し、YOLOを生成しません。trainには擬似trainを1回、実写trainを`--real-repeat`回だけ入れ、valには実写valだけを使います。実行時に生成した`mixed_dataset.yaml`と混合比JSONは実験ディレクトリへ保存されます。v8はv7 bestを初期重みに使い、低学習率、早期終了、backbone freeze、明度・コントラスト、blur、JPEG圧縮の拡張を設定します。左右のclass IDを維持するため、水平反転は無効です。
+
+v8 実ML smoke設定:
+
+```bash
+uv run python 01_stage1_real_image_extraction/scripts/train_tooth_seg_flont_v8.py --synthetic-data 01_stage1_real_image_extraction/datasets/dataset_flont/dataset_flont.yaml --real-data 01_stage1_real_image_extraction/datasets/dataset_real/dataset_code_real/dataset_code_real.yaml --real-repeat 2 --dry-run --device cpu --workers 0 --project /tmp/odonto_v8_smoke
+```
+
+`--dry-run`は、擬似train、実写train、実写valからpath順の先頭画像を1枚ずつ選び、専用file listとYAMLを作って1 epochの学習を起動します。`fraction`は1.0です。成功後はfile list、`mixed_dataset.yaml`、`mixed_dataset.json`を実験ディレクトリへ保存するため、YAMLの参照は実行後も有効です。`--prepare-only`とは併用できません。このREADMEには再現用コマンドだけを記載しており、今回の実装確認では実ML smokeを実行していません。
+
+実写valでのv7 zero-shotとv8比較設定の非ML検証:
+
+```bash
+uv run python 01_stage1_real_image_extraction/scripts/validate_tooth_seg_real.py --data 01_stage1_real_image_extraction/datasets/dataset_real/dataset_code_real/dataset_code_real.yaml --metadata 01_stage1_real_image_extraction/datasets/dataset_real/dataset_code_real/metadata.csv --model v7_zero_shot=01_stage1_real_image_extraction/experiments/v7_best/weights/best.pt --model v8=01_stage1_real_image_extraction/experiments/v8_best/weights/best.pt --project 01_stage1_real_image_extraction/experiments --name real_val_comparison --prepare-only
+```
+
+実評価では`--metadata`が必須です。対象6クラスごとのbox/mask mAP50とmAP50-95、v7からv8への差分、全6クラス改善の判定を出します。`metadata.csv`はtrain/val両方の画像集合と一致し、各行の`source_sha256`が対応画像の実SHA-256と一致しなければなりません。その確認後にpatient、checkup、SHA-256のsplit間重複を拒否します。3種類の条件タグごとの検証subsetも同じ重みで評価します。全モデル、全条件、集計を同一filesystem上の一時generationへ出力し、すべて成功した場合だけ最終出力をatomicに置き換えます。
 
 COde アノテーション batch の準備:
 
@@ -72,6 +103,8 @@ uv run python 02_stage2_capture_matching/scripts/finalize_code_annotation_datase
 ```
 
 この処理では、元画像とmanifestのSHA-256、train/valの画像集合、14クラスの順序、対象6クラスのpolygonを検査します。train task のexportだけを学習split、val taskのexportだけを検証splitへ割り当て、CVAT内部のsubset名は使いません。実写画像、台帳、export ZIP、変換後datasetはGitにコミットしません。
+
+`code_annotation/annotation_manifest.csv`の60枚は、polygon、status、3種類の条件タグを人手で確定してから変換します。`pending`が1件でも残る段階では、zero-shot評価とv8学習へ進みません。
 
 ## 判断
 
