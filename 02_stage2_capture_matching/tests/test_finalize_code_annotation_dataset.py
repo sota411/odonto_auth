@@ -423,8 +423,8 @@ class FinalizeCodeAnnotationDatasetTest(unittest.TestCase):
         )
 
         with patch.object(
-            finalize_code_annotation_dataset.Image,
-            "open",
+            finalize_code_annotation_dataset,
+            "_PILLOW_IMAGE_OPEN",
             side_effect=missing_decoder,
         ):
             with self.assertRaisesRegex(RuntimeError, "decode"):

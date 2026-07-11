@@ -18,6 +18,8 @@ from pathlib import Path, PurePosixPath
 import yaml
 from PIL import Image, UnidentifiedImageError
 
+_PILLOW_IMAGE_OPEN = Image.open
+
 from code_photos import sha256_file
 from output_directory import create_generation_directory, discard_generation, publish_generation
 from prepare_code_annotation_batch import (
@@ -548,14 +550,14 @@ def load_batch_images(
                     f"expected={expected_sha256}, actual={actual_sha256}"
                 )
             try:
-                with Image.open(io.BytesIO(image_bytes)) as image:
+                with _PILLOW_IMAGE_OPEN(io.BytesIO(image_bytes)) as image:
                     image_format = image.format
                     if image.width * image.height > max_image_pixels:
                         raise RuntimeError(
                             f"batch image exceeds pixel limit {max_image_pixels}: {image_name!r}"
                         )
                     image.verify()
-                with Image.open(io.BytesIO(image_bytes)) as image:
+                with _PILLOW_IMAGE_OPEN(io.BytesIO(image_bytes)) as image:
                     if image.width * image.height > max_image_pixels:
                         raise RuntimeError(
                             f"batch image exceeds pixel limit {max_image_pixels}: {image_name!r}"
