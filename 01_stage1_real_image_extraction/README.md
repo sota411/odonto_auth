@@ -46,7 +46,7 @@ v8 fine-tune設定の非ML検証:
 uv run python 01_stage1_real_image_extraction/scripts/train_tooth_seg_flont_v8.py --synthetic-data 01_stage1_real_image_extraction/datasets/dataset_flont/dataset_flont.yaml --real-data 01_stage1_real_image_extraction/datasets/dataset_real/dataset_code_real/dataset_code_real.yaml --real-repeat 2 --prepare-only --device cpu
 ```
 
-このコマンドと下記の実写valコマンドは、CVAT exportから`dataset_code_real`を確定した後に実行します。現時点で再実行できる非ML smoke testは次のコマンドです。
+このコマンドと下記の実写valコマンドは、annotation exportから`dataset_code_real`を確定した後に実行します。非ML smoke testは次のコマンドです。
 
 ```bash
 uv run python -m unittest discover -s 01_stage1_real_image_extraction/tests -p 'test_*.py' -v
@@ -105,6 +105,8 @@ uv run python 02_stage2_capture_matching/scripts/finalize_code_annotation_datase
 この処理では、元画像とmanifestのSHA-256、train/valの画像集合、14クラスの順序、対象6クラスのpolygonを検査します。train task のexportだけを学習split、val taskのexportだけを検証splitへ割り当て、CVAT内部のsubset名は使いません。実写画像、台帳、export ZIP、変換後datasetはGitにコミットしません。
 
 `code_annotation/annotation_manifest.csv`の60枚は、polygon、status、3種類の条件タグを人手で確定してから変換します。`pending`が1件でも残る段階では、zero-shot評価とv8学習へ進みません。
+
+2026年7月11日の実行では、60枚を確認し、正例26枚、負例2枚、除外32枚で確定した。SAM2.1 smallのbox promptでpolygon作成を補助し、全maskを画像へ重ねて確認した。trainは正例16枚と負例2枚、valは正例10枚である。v7 zero-shotのmask mAP50は0.000、v8全層fine-tuneは0.162で、6クラスすべてが改善した。重みと実画像はGitへ追加せず、公開可能な集計と制約を[実写適応レポート](../02_stage2_capture_matching/notes/v8_real_adaptation_report.md)に記録している。
 
 ## 判断
 

@@ -128,6 +128,21 @@ HOGではR1、R2、R3、L1、L2、L3のうち5歯種でAUCが上がった。ResN
 
 今回の値には bootstrap 信頼区間を付けていない。採点対象が元のペアから大きく減った complete-case 評価でもあるため、最終性能としては扱わない。
 
+## v8後の再評価
+
+2026年7月11日に、採用したv8全層fine-tune重みで同じCOde test 6,496枚を再抽出した。回転正規化、confidence 0.05、IoU 0.70、入力832、pair manifestは`rotv2`から変えていない。検出は1,267件から14,965件、特徴ありcheckupは430件から1,006件、歯種スロットは1,016件から4,733件へ増えた。採点可能pairは171件から1,455件になった。
+
+| 特徴 | 採点pair | ROC AUC | EER | d-prime |
+|---|---:|---:|---:|---:|
+| ResNet50 | 1,455 | 0.562 | 45.9% | 0.213 |
+| HOG | 1,455 | 0.531 | 48.6% | 0.075 |
+
+coverageは増えたが、分離は弱い。旧v7のAUCはResNet50 0.592、HOG 0.605だったものの、旧評価は採点できた171件だけなので単純な性能差としては扱わない。v8後の1,455件を次の基準集合とする。全桁は[統合指標](../evaluation/code_matching_rotv2_v8_baseline_metrics.csv)と、[ResNet50歯種別](../evaluation/code_matching_rotv2_v8_per_tooth_resnet50_metrics.csv)、[HOG歯種別](../evaluation/code_matching_rotv2_v8_per_tooth_hog_metrics.csv)に保存した。
+
+v8重みでも照合CLIを実行し、2 checkup・18画像のHOG templateに対して別checkupの1画像を照合した。4歯のスコアと融合スコア0.850669をJSONで返した。CLIの接続は通ったが、この1件を受入閾値には使わない。
+
+Plan 04の分岐条件に従うと、次はmetric learningの比較対象を作る段階である。ただし、実画像valは10枚しかなく、通常照明と過露光のmask mAP50は0だった。追加注釈でsegmentationの再現性を確認してから学習へ進む。
+
 ## 再現上の注意
 
 Ultralytics 8.4.19 はパスの list を渡すと、list 全体を画像としてメモリへ展開する。6,496パスを一度に渡した初回 full run は終了コード137で停止した。`extract_code_features.py` は入力を64枚ずつ渡し、predictor が保持する結果、batch、dataset を解放してから最大16 cropずつ特徴を抽出する。レビュー修正後の141枚 pilot 実行中に確認した VRAM 使用量は9,898 / 10,240 MiBだった。容量が小さい GPU では、まず `--source-chunk-size` と `--feature-batch-size` を下げる。

@@ -1,0 +1,15 @@
+tag,value,image_count,model,box_map50,box_map50_95,mask_map50,mask_map50_95
+view_tag,frontal,9,v7_zero_shot,0.000000,0.000000,0.000000,0.000000
+view_tag,frontal,9,v8_real_finetune_unfrozen_r2,0.184133,0.094637,0.169144,0.095147
+view_tag,maxillary_occlusal,1,v7_zero_shot,0.165833,0.016583,0.000000,0.000000
+view_tag,maxillary_occlusal,1,v8_real_finetune_unfrozen_r2,0.213214,0.054488,0.213214,0.047381
+lighting_tag,normal,2,v7_zero_shot,0.000000,0.000000,0.000000,0.000000
+lighting_tag,normal,2,v8_real_finetune_unfrozen_r2,0.000000,0.000000,0.000000,0.000000
+lighting_tag,overexposed,1,v7_zero_shot,0.000000,0.000000,0.000000,0.000000
+lighting_tag,overexposed,1,v8_real_finetune_unfrozen_r2,0.000000,0.000000,0.000000,0.000000
+lighting_tag,reflection,7,v7_zero_shot,0.059701,0.005970,0.000000,0.000000
+lighting_tag,reflection,7,v8_real_finetune_unfrozen_r2,0.251141,0.119561,0.233393,0.114844
+oral_condition_tag,none,5,v7_zero_shot,0.033125,0.003313,0.000000,0.000000
+oral_condition_tag,none,5,v8_real_finetune_unfrozen_r2,0.232065,0.126240,0.194709,0.116182
+oral_condition_tag,restoration,5,v7_zero_shot,0.000000,0.000000,0.000000,0.000000
+oral_condition_tag,restoration,5,v8_real_finetune_unfrozen_r2,0.153330,0.062408,0.161455,0.062236

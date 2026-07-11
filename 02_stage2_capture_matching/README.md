@@ -29,11 +29,20 @@
 - `evaluation/code_matching_hog_score_distribution.png`
 - `evaluation/code_matching_rotv2_resnet50_score_distribution.png`
 - `evaluation/code_matching_rotv2_hog_score_distribution.png`
+- `evaluation/code_matching_rotv2_v8_baseline_metrics.csv`
+- `evaluation/code_matching_rotv2_v8_per_tooth_resnet50_metrics.csv`
+- `evaluation/code_matching_rotv2_v8_per_tooth_hog_metrics.csv`
+- `evaluation/code_matching_rotv2_v8_resnet50_score_distribution.png`
+- `evaluation/code_matching_rotv2_v8_hog_score_distribution.png`
+- `evaluation/v8_real_adaptation_overall_metrics.csv`
+- `evaluation/v8_real_adaptation_per_class_metrics.csv`
+- `evaluation/v8_real_adaptation_condition_metrics.csv`
 - `evaluation/rendered_hog_matching_metrics.csv`
 - `evaluation/rendered_hog_score_distribution.png`
 - `fixtures/teeth3ds_render_sources.csv`
 - `notes/tooth_seg_flont_v1_v7_summary.md`
 - `notes/matching_baseline_report.md`
+- `notes/v8_real_adaptation_report.md`
 
 ## 代表コマンド
 
@@ -126,6 +135,8 @@ uv run python 02_stage2_capture_matching/scripts/finalize_code_annotation_datase
 ```bash
 uv run python 02_stage2_capture_matching/scripts/extract_code_features.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --images-root /path/to/COde --weights 01_stage1_real_image_extraction/experiments/v7_best/weights/best.pt --expected-weights-sha256 f945236eb2441dfbbd0c439a5cd1c3e4d94e97650f3d0429cff5ee6da7a90454 --output-dir 02_stage2_capture_matching/logs/code_features_test_conf005_rotv2 --split test --feature-types resnet50 hog --device 0 --imgsz 832 --conf 0.05 --iou 0.70 --source-chunk-size 64 --feature-batch-size 16 --crop-size 224 --crop-padding 0.12 --max-views-per-tooth 3 --audit-crops 60
 ```
+
+v8全層fine-tune後も、重み、重みSHA-256、出力先だけを変えて同じ条件で再抽出する。2026年7月11日の採用重みSHA-256は`6bdb44932450bb081961bc99a8c7ea505a093c3e307fa738ed0b222a94d30010`である。再抽出では特徴ありcheckupが430件から1,006件、採点可能pairが171件から1,455件へ増えた。集計値と判断は[v8実写適応レポート](notes/v8_real_adaptation_report.md)に記録している。
 
 ```bash
 uv run python 02_stage2_capture_matching/scripts/score_code_pairs.py --pairs-csv 02_stage2_capture_matching/logs/code_pair_manifest/pairs.csv --features-npz 02_stage2_capture_matching/logs/code_features_test_conf005_rotv2/features_resnet50.npz --images-root /path/to/COde --output-dir 02_stage2_capture_matching/logs/code_scores_test_conf005_rotv2_resnet50 --split test --min-common-teeth 1
