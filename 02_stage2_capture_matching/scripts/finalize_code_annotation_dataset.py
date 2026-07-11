@@ -17,8 +17,7 @@ from pathlib import Path, PurePosixPath
 
 import yaml
 from PIL import Image, UnidentifiedImageError
-
-_PILLOW_IMAGE_OPEN = Image.open
+from ultralytics.utils.patches import _image_open as _PILLOW_IMAGE_OPEN
 
 from code_photos import sha256_file
 from output_directory import create_generation_directory, discard_generation, publish_generation
