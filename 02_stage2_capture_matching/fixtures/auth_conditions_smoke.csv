@@ -1,0 +1,5 @@
+subject_id,session_id,lighting,oral_condition
+p1,c1,normal,none
+p1,c2,normal,none
+p2,c2,reflection,restoration
+p3,c2,overexposed,none

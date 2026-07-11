@@ -6,6 +6,7 @@
 
 ```text
 02_stage2_capture_matching/
+├── config/
 ├── scripts/
 ├── tests/
 ├── fixtures/
@@ -30,6 +31,9 @@
 - `evaluation/code_matching_rotv2_resnet50_score_distribution.png`
 - `evaluation/code_matching_rotv2_hog_score_distribution.png`
 - `evaluation/code_matching_rotv2_v8_baseline_metrics.csv`
+- `evaluation/code_matching_rotv2_v8_bootstrap_intervals.csv`
+- `evaluation/code_matching_rotv2_v8_resnet50_det_curve.png`
+- `evaluation/code_matching_rotv2_v8_hog_det_curve.png`
 - `evaluation/code_matching_rotv2_v8_per_tooth_resnet50_metrics.csv`
 - `evaluation/code_matching_rotv2_v8_per_tooth_hog_metrics.csv`
 - `evaluation/code_matching_rotv2_v8_resnet50_score_distribution.png`
@@ -67,8 +71,18 @@ uv run python 02_stage2_capture_matching/scripts/build_code_pair_manifest.py --i
 合成スコアでの認証評価 smoke test:
 
 ```bash
-uv run python 02_stage2_capture_matching/scripts/evaluate_authentication.py --scores-csv 02_stage2_capture_matching/fixtures/auth_scores_smoke.csv --output-dir /tmp/auth_eval_smoke
+uv run python 02_stage2_capture_matching/scripts/evaluate_authentication.py --scores-csv 02_stage2_capture_matching/fixtures/auth_scores_smoke.csv --conditions-csv 02_stage2_capture_matching/fixtures/auth_conditions_smoke.csv --condition-column lighting --condition-column oral_condition --output-dir 02_stage2_capture_matching/logs/auth_eval_smoke --bootstrap-samples 2000 --bootstrap-seed 42
 ```
+
+このコマンドはsame-session genuineを1件除外し、従来の指標と図に加えて、bootstrap区間、DET曲線、条件別CSVをatomicに生成します。1,455 pair相当、2,000回のbootstrapはローカル計測で約1.44秒でした。
+
+品質ゲートのI/O smoke test:
+
+```bash
+uv run python 02_stage2_capture_matching/scripts/quality_gate.py --image 02_stage2_capture_matching/evaluation/code_matching_rotv2_v8_hog_score_distribution.png --config 02_stage2_capture_matching/fixtures/quality_gate_smoke.json --detected-teeth 6 --mean-detection-confidence 0.8
+```
+
+このsmoke設定は全入力を通すfixtureです。`config/quality_gate.json`は未校正のため、実画像で閾値を決めるまではFail Fastで停止します。
 
 照合ロジックとスコア生成の単体テスト:
 
@@ -198,7 +212,7 @@ uv run python 02_stage2_capture_matching/scripts/summarize_tooth_seg_scores.py
 
 `prepare_code_annotation_batch.py` は `checkups.csv` の train / val 患者だけから1患者1checkupで画像を選びます。選定順は seed と source ID の SHA-256 で固定し、内容が重複する写真は除外します。出力は匿名名の画像、CVAT用ZIP、14クラスのラベル定義、source IDと画像SHA-256を持つ ignored manifest です。test患者はアノテーションにも学習にも使いません。
 
-`evaluate_authentication.py` は、照合スコア CSV から FAR、FRR、EER、ROC AUC、d-prime、genuine/impostor の分布図を出力します。入力列と除外ルールは `notes/auth_evaluation_protocol.md` に記録しています。
+`evaluate_authentication.py` は、照合スコア CSV から FAR、FRR、EER、ROC AUC、d-prime、bootstrap区間、DET曲線、条件別指標を出力します。入力列と除外ルールは `notes/auth_evaluation_protocol.md` に記録しています。
 
 自前収集では、`notes/capture_protocol.md`、`notes/consent_form_template.md`、`fixtures/capture_metadata_template.csv`を使います。実値を持つ画像とmetadataは`01_stage1_real_image_extraction/datasets/dataset_real/`へ置き、Gitへ追加しません。
 

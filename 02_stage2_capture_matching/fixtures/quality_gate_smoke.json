@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "calibrated",
+  "thresholds": {
+    "min_detected_teeth": 0,
+    "min_mean_detection_confidence": 0.0,
+    "min_laplacian_variance": 0.0,
+    "min_mean_luminance": 0.0,
+    "max_mean_luminance": 255.0,
+    "max_dark_pixel_fraction": 1.0,
+    "max_bright_pixel_fraction": 1.0,
+    "dark_pixel_threshold": 0,
+    "bright_pixel_threshold": 255
+  }
+}
