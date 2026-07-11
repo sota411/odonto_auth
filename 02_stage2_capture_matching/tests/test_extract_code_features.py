@@ -15,9 +15,11 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from code_photos import sha256_file  # noqa: E402
 from extract_code_features import (  # noqa: E402
+    PREPROCESSING_FORMAT_VERSION,
     Checkup,
     CropRecord,
     Photo,
+    build_normalized_crop,
     load_verified_resnet_state_dict,
     iter_photo_chunks,
     main,
@@ -59,6 +61,33 @@ class RetainFeatureViewTest(unittest.TestCase):
 
 
 class FeatureExtractionBoundaryTest(unittest.TestCase):
+    def test_builds_crop_after_tooth_axis_normalization(self) -> None:
+        image = np.zeros((8, 9, 3), dtype=np.uint8)
+        mask = np.zeros((8, 9), dtype=np.bool_)
+        mask[2:6, 3:5] = True
+        normalized_image = np.ones_like(image)
+        normalized_mask = np.ones_like(mask)
+        expected_crop = np.full((16, 16, 3), 7, dtype=np.uint8)
+
+        with mock.patch(
+            "extract_code_features.normalize_tooth_axis",
+            return_value=(normalized_image, normalized_mask),
+        ) as normalize_axis:
+            with mock.patch(
+                "extract_code_features.masked_square_crop",
+                return_value=expected_crop,
+            ) as square_crop:
+                actual = build_normalized_crop(image, mask, 16, 0.12)
+
+        normalize_axis.assert_called_once_with(image, mask)
+        square_crop.assert_called_once_with(
+            normalized_image,
+            normalized_mask,
+            output_size=16,
+            padding_ratio=0.12,
+        )
+        self.assertIs(actual, expected_crop)
+
     def test_releases_yolo_predictor_before_bounded_feature_batches(self) -> None:
         predictor = SimpleNamespace(results=[object()], batch=object(), dataset=object())
         model = SimpleNamespace(predictor=predictor)
@@ -174,6 +203,13 @@ class FeatureExtractionBoundaryTest(unittest.TestCase):
                 [photo],
                 {checkup.uid: {0: [(np.asarray([1.0, 0.0]), 0.9, "photo.jpg")]}},
                 3,
+                segmentation_weights_sha256="b" * 64,
+                imgsz=832,
+                conf=0.1,
+                iou=0.7,
+                crop_size=224,
+                crop_padding=0.12,
+                preprocessing_format_version=PREPROCESSING_FORMAT_VERSION,
             )
             store = build_feature_store(feature_path)
 
@@ -181,6 +217,18 @@ class FeatureExtractionBoundaryTest(unittest.TestCase):
             self.assertTrue(store.present[0, 0])
             self.assertEqual(store.photo_fingerprints[0][0].reference, "photo.jpg")
             self.assertEqual(store.photo_fingerprints[0][0].sha256, sha256_file(photo_path))
+            with np.load(feature_path, allow_pickle=False) as archive:
+                self.assertEqual(archive["segmentation_weights_sha256"].item(), "b" * 64)
+                self.assertEqual(archive["segmentation_imgsz"].item(), 832)
+                self.assertEqual(archive["segmentation_conf"].item(), 0.1)
+                self.assertEqual(archive["segmentation_iou"].item(), 0.7)
+                self.assertEqual(archive["crop_size"].item(), 224)
+                self.assertEqual(archive["crop_padding"].item(), 0.12)
+                self.assertEqual(
+                    archive["preprocessing_format_version"].item(),
+                    PREPROCESSING_FORMAT_VERSION,
+                )
+                self.assertEqual(archive["feature_name"].item(), "test-feature")
 
     def test_audit_outputs_do_not_include_source_identifiers(self) -> None:
         with TemporaryDirectory() as temporary_directory:

@@ -17,6 +17,53 @@ class MatchingResult:
     common_teeth: tuple[str, ...]
 
 
+def normalize_tooth_axis(
+    image: np.ndarray,
+    mask: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Rotate a mask's principal long axis on a local square canvas."""
+    _validate_image_and_mask(image, mask)
+    if not np.any(mask):
+        raise RuntimeError("mask must contain at least one foreground pixel.")
+
+    local_image, local_mask = _extract_rotation_canvas(image, mask)
+    foreground_y, foreground_x = np.nonzero(local_mask)
+    center_y = float(np.mean(foreground_y))
+    center_x = float(np.mean(foreground_x))
+    centered_coordinates = np.column_stack(
+        (foreground_x - center_x, foreground_y - center_y)
+    )
+    covariance = centered_coordinates.T @ centered_coordinates / foreground_x.size
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    if math.isclose(
+        float(eigenvalues[0]),
+        float(eigenvalues[1]),
+        rel_tol=1e-6,
+        abs_tol=np.finfo(np.float64).eps,
+    ):
+        raise RuntimeError(
+            "mask principal axis is undefined because the foreground is isotropic."
+        )
+
+    major_axis = eigenvectors[:, 1]
+    major_axis_angle = math.atan2(float(major_axis[1]), float(major_axis[0]))
+    rotation_angle = math.pi / 2.0 - major_axis_angle
+    rotation_angle = (rotation_angle + math.pi / 2.0) % math.pi - math.pi / 2.0
+    if math.isclose(rotation_angle, 0.0, abs_tol=1e-15):
+        return local_image, local_mask
+
+    rotation_center = (local_mask.shape[0] - 1) / 2.0
+    source_y, source_x = _rotation_source_coordinates(
+        local_mask.shape,
+        rotation_center,
+        rotation_center,
+        rotation_angle,
+    )
+    rotated_image = _sample_bilinear(local_image, source_y, source_x)
+    rotated_mask = _sample_mask_nearest(local_mask, source_y, source_x)
+    return rotated_image, rotated_mask
+
+
 def masked_square_crop(
     image: np.ndarray,
     mask: np.ndarray,
@@ -275,6 +322,121 @@ def _validate_padding_ratio(padding_ratio: float) -> float:
             f"padding_ratio must be a non-negative finite number; got {padding_ratio!r}."
         )
     return validated
+
+
+def _extract_rotation_canvas(
+    image: np.ndarray,
+    mask: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    foreground_y, foreground_x = np.nonzero(mask)
+    y_min = int(foreground_y.min())
+    y_max = int(foreground_y.max())
+    x_min = int(foreground_x.min())
+    x_max = int(foreground_x.max())
+    bbox_height = y_max - y_min + 1
+    bbox_width = x_max - x_min + 1
+    square_side = math.ceil(math.hypot(bbox_height, bbox_width)) + 2
+    canvas_center = (square_side - 1) / 2.0
+    bbox_center_y = (y_min + y_max) / 2.0
+    bbox_center_x = (x_min + x_max) / 2.0
+    square_top = math.floor(bbox_center_y - canvas_center + 0.5)
+    square_left = math.floor(bbox_center_x - canvas_center + 0.5)
+
+    local_image = np.zeros((square_side, square_side, 3), dtype=image.dtype)
+    local_mask = np.zeros((square_side, square_side), dtype=bool)
+    source_top = max(square_top, 0)
+    source_left = max(square_left, 0)
+    source_bottom = min(square_top + square_side, image.shape[0])
+    source_right = min(square_left + square_side, image.shape[1])
+    destination_top = source_top - square_top
+    destination_left = source_left - square_left
+    destination_bottom = destination_top + source_bottom - source_top
+    destination_right = destination_left + source_right - source_left
+    local_image[
+        destination_top:destination_bottom,
+        destination_left:destination_right,
+    ] = image[source_top:source_bottom, source_left:source_right]
+    local_mask[
+        destination_top:destination_bottom,
+        destination_left:destination_right,
+    ] = mask[source_top:source_bottom, source_left:source_right]
+    return local_image, local_mask
+
+
+def _rotation_source_coordinates(
+    shape: tuple[int, int],
+    center_y: float,
+    center_x: float,
+    rotation_angle: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    destination_y, destination_x = np.indices(shape, dtype=np.float64)
+    relative_y = destination_y - center_y
+    relative_x = destination_x - center_x
+    cosine = math.cos(rotation_angle)
+    sine = math.sin(rotation_angle)
+    source_x = cosine * relative_x + sine * relative_y + center_x
+    source_y = -sine * relative_x + cosine * relative_y + center_y
+    return source_y, source_x
+
+
+def _sample_bilinear(
+    image: np.ndarray,
+    source_y: np.ndarray,
+    source_x: np.ndarray,
+) -> np.ndarray:
+    height, width = image.shape[:2]
+    valid = (
+        (source_y >= 0.0)
+        & (source_y <= height - 1)
+        & (source_x >= 0.0)
+        & (source_x <= width - 1)
+    )
+    bounded_y = np.clip(source_y, 0.0, height - 1)
+    bounded_x = np.clip(source_x, 0.0, width - 1)
+    top = np.floor(bounded_y).astype(np.intp)
+    left = np.floor(bounded_x).astype(np.intp)
+    bottom = np.minimum(top + 1, height - 1)
+    right = np.minimum(left + 1, width - 1)
+    vertical_weight = (bounded_y - top)[..., None]
+    horizontal_weight = (bounded_x - left)[..., None]
+
+    image_float = image.astype(np.float64)
+    sampled_top = (
+        image_float[top, left] * (1.0 - horizontal_weight)
+        + image_float[top, right] * horizontal_weight
+    )
+    sampled_bottom = (
+        image_float[bottom, left] * (1.0 - horizontal_weight)
+        + image_float[bottom, right] * horizontal_weight
+    )
+    sampled = (
+        sampled_top * (1.0 - vertical_weight)
+        + sampled_bottom * vertical_weight
+    )
+    sampled[~valid] = 0.0
+
+    if np.issubdtype(image.dtype, np.integer):
+        dtype_info = np.iinfo(image.dtype)
+        sampled = np.clip(np.rint(sampled), dtype_info.min, dtype_info.max)
+    return sampled.astype(image.dtype)
+
+
+def _sample_mask_nearest(
+    mask: np.ndarray,
+    source_y: np.ndarray,
+    source_x: np.ndarray,
+) -> np.ndarray:
+    nearest_y = np.rint(source_y).astype(np.intp)
+    nearest_x = np.rint(source_x).astype(np.intp)
+    valid = (
+        (nearest_y >= 0)
+        & (nearest_y < mask.shape[0])
+        & (nearest_x >= 0)
+        & (nearest_x < mask.shape[1])
+    )
+    sampled = np.zeros(mask.shape, dtype=bool)
+    sampled[valid] = mask[nearest_y[valid], nearest_x[valid]]
+    return sampled
 
 
 def _resize_square_bilinear(image: np.ndarray, output_size: int) -> np.ndarray:

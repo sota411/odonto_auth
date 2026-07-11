@@ -78,6 +78,8 @@ uv run python 02_stage2_capture_matching/scripts/evaluate_rendered_matching.py -
 
 この評価はYOLOやResNetを使いません。同一症例の別viewをgenuine、別症例をimpostorとして、`scores.csv`、歯種別・統合AUC、d-prime、分布図を出します。
 
+135症例・2視点の再生成結果は、genuine 135組、impostor 36,180組、fused ROC AUC 0.757、d-prime 0.996でした。
+
 公開用の集計とsource provenanceを更新する:
 
 ```bash

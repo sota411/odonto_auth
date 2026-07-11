@@ -21,7 +21,13 @@ from torch import nn
 from torchvision.models import ResNet50_Weights, resnet50
 
 from code_photos import normalize_sha256, parse_photographs, resolve_photo_reference, sha256_file
-from matching_core import TOOTH_NAMES, aggregate_embeddings, masked_square_crop, normalize_embedding
+from matching_core import (
+    TOOTH_NAMES,
+    aggregate_embeddings,
+    masked_square_crop,
+    normalize_embedding,
+    normalize_tooth_axis,
+)
 from output_directory import create_generation_directory, discard_generation, publish_generation
 
 
@@ -48,6 +54,7 @@ PAIR_COLUMNS = (
 )
 MODEL_CLASS_TO_TOOTH_INDEX = {0: 0, 1: 1, 2: 2, 7: 3, 8: 4, 9: 5}
 FEATURE_NAMES = ("resnet50", "hog")
+PREPROCESSING_FORMAT_VERSION = "tooth-axis-normalized-crop-v1"
 RESNET_WEIGHTS_NAME = "IMAGENET1K_V2"
 RESNET_WEIGHTS_FILE = "resnet50-11ad3fa6.pth"
 RESNET_WEIGHTS_URL = ResNet50_Weights.IMAGENET1K_V2.url
@@ -460,6 +467,21 @@ def resize_mask(mask: np.ndarray, image_shape: tuple[int, int]) -> np.ndarray:
     return resized > 0.5
 
 
+def build_normalized_crop(
+    image: np.ndarray,
+    mask: np.ndarray,
+    output_size: int,
+    padding_ratio: float,
+) -> np.ndarray:
+    normalized_image, normalized_mask = normalize_tooth_axis(image, mask)
+    return masked_square_crop(
+        normalized_image,
+        normalized_mask,
+        output_size=output_size,
+        padding_ratio=padding_ratio,
+    )
+
+
 def iter_photo_chunks(photos: list[Photo], chunk_size: int) -> Iterator[list[Photo]]:
     if chunk_size <= 0:
         raise RuntimeError("chunk_size must be positive.")
@@ -594,11 +616,11 @@ def collect_features(
                         )
 
                 for tooth_index, (confidence, mask) in best_by_tooth.items():
-                    crop = masked_square_crop(
+                    crop = build_normalized_crop(
                         image_rgb,
                         mask,
-                        output_size=args.crop_size,
-                        padding_ratio=args.crop_padding,
+                        args.crop_size,
+                        args.crop_padding,
                     )
                     crop_record = CropRecord(
                         checkup_uid=photo.checkup_uid,
@@ -643,6 +665,53 @@ def atomic_save_npz(path: Path, **arrays: np.ndarray) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def validate_feature_file_contract(
+    feature_name: str,
+    segmentation_weights_sha256: str,
+    imgsz: int,
+    conf: float,
+    iou: float,
+    crop_size: int,
+    crop_padding: float,
+    preprocessing_format_version: str,
+) -> str:
+    if not isinstance(feature_name, str) or feature_name.strip() != feature_name or not feature_name:
+        raise RuntimeError("feature_name must be a non-empty string without surrounding whitespace.")
+    normalized_weights_sha256 = normalize_sha256(
+        segmentation_weights_sha256,
+        "segmentation_weights_sha256",
+    )
+    if isinstance(imgsz, bool) or not isinstance(imgsz, (int, np.integer)) or imgsz <= 0:
+        raise RuntimeError("imgsz must be a positive integer.")
+    if not isinstance(conf, (float, np.floating)) or not math.isfinite(float(conf)):
+        raise RuntimeError("conf must be a finite floating-point value.")
+    if not 0.0 < float(conf) <= 1.0:
+        raise RuntimeError("conf must be in (0, 1].")
+    if not isinstance(iou, (float, np.floating)) or not math.isfinite(float(iou)):
+        raise RuntimeError("iou must be a finite floating-point value.")
+    if not 0.0 < float(iou) <= 1.0:
+        raise RuntimeError("iou must be in (0, 1].")
+    if (
+        isinstance(crop_size, bool)
+        or not isinstance(crop_size, (int, np.integer))
+        or crop_size <= 0
+    ):
+        raise RuntimeError("crop_size must be a positive integer.")
+    if (
+        not isinstance(crop_padding, (float, np.floating))
+        or not math.isfinite(float(crop_padding))
+        or crop_padding < 0.0
+    ):
+        raise RuntimeError("crop_padding must be a finite non-negative floating-point value.")
+    if preprocessing_format_version != PREPROCESSING_FORMAT_VERSION:
+        raise RuntimeError(
+            "unsupported preprocessing_format_version: "
+            f"expected={PREPROCESSING_FORMAT_VERSION!r}, "
+            f"actual={preprocessing_format_version!r}"
+        )
+    return normalized_weights_sha256
+
+
 def write_feature_file(
     path: Path,
     feature_name: str,
@@ -650,7 +719,25 @@ def write_feature_file(
     photos: list[Photo],
     views: dict[str, dict[int, list[tuple[np.ndarray, float, str]]]],
     max_views_per_tooth: int,
+    *,
+    segmentation_weights_sha256: str,
+    imgsz: int,
+    conf: float,
+    iou: float,
+    crop_size: int,
+    crop_padding: float,
+    preprocessing_format_version: str,
 ) -> dict[str, object]:
+    normalized_weights_sha256 = validate_feature_file_contract(
+        feature_name,
+        segmentation_weights_sha256,
+        imgsz,
+        conf,
+        iou,
+        crop_size,
+        crop_padding,
+        preprocessing_format_version,
+    )
     checkup_ids = sorted(checkups)
     feature_dimension = 0
     for checkup_views in views.values():
@@ -722,6 +809,13 @@ def write_feature_file(
         mean_confidences=mean_confidences,
         feature_name=np.asarray(feature_name),
         photo_manifest_json=np.asarray(photo_manifest_json),
+        segmentation_weights_sha256=np.asarray(normalized_weights_sha256),
+        segmentation_imgsz=np.asarray(imgsz, dtype=np.int64),
+        segmentation_conf=np.asarray(conf, dtype=np.float64),
+        segmentation_iou=np.asarray(iou, dtype=np.float64),
+        crop_size=np.asarray(crop_size, dtype=np.int64),
+        crop_padding=np.asarray(crop_padding, dtype=np.float64),
+        preprocessing_format_version=np.asarray(preprocessing_format_version),
     )
     return {
         "file": path.name,
@@ -894,6 +988,13 @@ def main() -> int:
                 photos,
                 feature_views[feature_name],
                 args.max_views_per_tooth,
+                segmentation_weights_sha256=actual_weights_sha256,
+                imgsz=args.imgsz,
+                conf=args.conf,
+                iou=args.iou,
+                crop_size=args.crop_size,
+                crop_padding=args.crop_padding,
+                preprocessing_format_version=PREPROCESSING_FORMAT_VERSION,
             )
 
         write_quality_csv(generation_dir / "quality.csv", checkups, quality)
@@ -920,6 +1021,7 @@ def main() -> int:
                 "feature_batch_size": args.feature_batch_size,
                 "crop_size": args.crop_size,
                 "crop_padding": args.crop_padding,
+                "preprocessing_format_version": PREPROCESSING_FORMAT_VERSION,
                 "max_views_per_tooth": args.max_views_per_tooth,
             },
             "features": feature_summaries,
