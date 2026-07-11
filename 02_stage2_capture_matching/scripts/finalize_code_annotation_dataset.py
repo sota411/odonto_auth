@@ -563,6 +563,12 @@ def load_batch_images(
                     image.load()
             except (UnidentifiedImageError, OSError) as error:
                 raise RuntimeError(f"batch image cannot be decoded: {image_name!r}") from error
+            except ModuleNotFoundError as error:
+                if error.name != "pi_heif":
+                    raise
+                raise RuntimeError(
+                    f"batch image cannot be decoded: {image_name!r}"
+                ) from error
             expected_formats = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG"}
             expected_format = expected_formats[Path(image_name).suffix.lower()]
             if image_format != expected_format:

@@ -416,6 +416,20 @@ class FinalizeCodeAnnotationDatasetTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "decode"):
             self.run_cli()
 
+    def test_converts_missing_optional_decoder_for_invalid_input(self) -> None:
+        missing_decoder = ModuleNotFoundError(
+            "No module named 'pi_heif'",
+            name="pi_heif",
+        )
+
+        with patch.object(
+            finalize_code_annotation_dataset.Image,
+            "open",
+            side_effect=missing_decoder,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "decode"):
+                self.run_cli()
+
     def test_rejects_a_truncated_jpeg_that_passes_header_parsing(self) -> None:
         target = next(row for row in self.rows if row["image_name"] == "code_train_0001_01.jpg")
         truncated = image_bytes(target["image_name"])[:-2]
